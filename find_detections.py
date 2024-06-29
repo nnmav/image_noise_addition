@@ -60,6 +60,7 @@ if __name__ == "__main__":
     parser.add_argument("method", type=str, help="Method to use for detection (2d or 3d)", default="2d")
     parser.add_argument("--model_file", type=str, help="Path to the YOLOv4 model weights file", default="parameters/yolov4.weights")
     parser.add_argument("--config_file", type=str, help="Path to the YOLOv4 model configuration file", default="parameters/yolov4.cfg")
+    parser.add_argument("--silent", help="Suppress output", action="store_true")
 
     args = parser.parse_args()
 
@@ -103,7 +104,8 @@ if __name__ == "__main__":
             error_msg = str(e)
 
         if error_msg:
-            print(f"\nError processing {image_path}: {error_msg}")
+            if not args.silent:
+                print(f"\nError processing {image_path}: {error_msg}")
             errors.append(f"{image_path}: {error_msg}")
 
     # Stop timer
