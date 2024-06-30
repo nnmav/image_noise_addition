@@ -79,7 +79,7 @@ if __name__ == "__main__":
     # Process each detection file in the directory
     for detection_path in detection_paths:
         images_processed += 1
-        print(f"\rProgress: {(100 * images_processed / total_images):.2f}%", end="")
+        print(f"\rProgress: {(100 * images_processed / total_images):.2f}%", end=" ")
         error_msg = None
         try:
             image_path = os.path.join(image_directory, os.path.basename(detection_path).replace('.txt', '.png'))

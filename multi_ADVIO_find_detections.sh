@@ -26,17 +26,18 @@ check_help() {
 # ==================== EDIT BELOW AS NEEDED ====================
 show_help() {
     echo "Description:"
-    echo "  This script performs various tasks based on the provided options."
+    echo "  Run find_detection on all sequences in an ADVIO directory"
     echo
     echo "Usage: $0 [args] [options]" # Keep as it is
     echo
     echo "Arguments:"
-    echo "  <sequences_dir>         Directory containing sequences"
-    echo "  <output_detections_dir> Directory to save detections to"
-    echo "  <method>                Method to use for detection (2d or 3d)"
+    echo "  <images_dirs_dir>         Directory containing images_dirs"
+    echo "  <output_detections_dir>   Directory to save detections to"
+    echo "  <method>                  Method to use for detection (2d or 3d)"
     echo
     echo "Options:"
-    echo "  -h, --help      Show this help message and exit" # Keep as it is
+    echo "  -h, --help                Show this help message and exit" # Keep as it is
+    echo "  --silent=<bool>           Run the script in silent mode (default: false)"
     echo
 }
 # CHANGE NUMBER AND NAMES OF ARGS AS NEEDED
@@ -54,25 +55,42 @@ main() {
     SEQUENCES_DIR=$1
     OUTPUT_DETECTIONS_DIR=$2
     METHOD=$3
-    
-    # Main script logic here
-    for dir in $SEQUENCES_DIR/*; do
-        if [ -d "$dir" ]; then
-            sequence=$dir/mav0/cam0/data # Change this line as needed
-            basename_dir=$(basename $dir)
-            parent_dir=$(dirname $dir)
-            detections_dir=$OUTPUT_DETECTIONS_DIR/new/"$(basename $parent_dir)"/"$basename_dir"
-            mkdir -p $detections_dir
-            if [ "$METHOD" == "2d" ]; then
-                echo "Running 2D detection on $basename_dir"
-                python3 find_detections.py $sequence $detections_dir $METHOD --silent
-            elif [ "$METHOD" == "3d" ]; then
-                echo "Running 3D detection on $basename_dir"
-                python3 find_detections.py $sequence $detections_dir $METHOD --silent
-            else
-                echo "Invalid method: $METHOD"
+
+    shift $NO_REQ_ARGS
+
+    SILENT=false
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --silent=*)
+              if [[ "${1#*=}" != "true" && "${1#*=}" != "false" ]]; then
+                echo "Error: Invalid value for --silent option. Expected true or false, but got ${1#*=}"
                 show_help
                 exit 1
+              fi
+                SILENT="${1#*=}"
+                ;;
+            *)
+                echo "Error: Unrecognized option $1"
+                show_help
+                exit 1
+                ;;
+        esac
+        shift
+    done
+    
+    # Main script logic here
+    for dir in "$SEQUENCES_DIR"/*; do
+        if [ -d "$dir" ]; then
+            images_dir=$dir/iphone/mav0/cam0/data # Change this line as needed
+            basename_dir=$(basename "$dir")
+            parent_dir=$(dirname "$dir")
+            detections_dir=$OUTPUT_DETECTIONS_DIR/new/"$(basename "$parent_dir")"/"$basename_dir"
+            echo "Running $METHOD detection on $basename_dir"
+            if [ "$SILENT" = false ]; then
+              find_detections_EuRoC.sh "$images_dir" "$detections_dir" "$METHOD"
+            else
+              find_detections_EuRoC.sh "$images_dir" "$detections_dir" "$METHOD" --silent
             fi
         fi
     done

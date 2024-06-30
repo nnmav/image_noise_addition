@@ -26,24 +26,22 @@ check_help() {
 # ==================== EDIT BELOW AS NEEDED ====================
 show_help() {
     echo "Description:"
-    echo "  Find detections in images using a specified method"
+    echo "  Add Laplacian noise to images. Core functionality is in add_laplacian_noise_to_images.py"
     echo
     echo "Usage: $0 [args] [options]" # Keep as it is
     echo
     echo "Arguments:"
-    echo "  <sequences_dir>         Directory containing sequences"
-    echo "  <output_detections_dir> Directory to save detections to"
-    echo "  <method>                Method to use for detection (2d or 3d)"
+    echo "  <images_dir>          directory containing images"
+    echo "  <detections_dir>      directory containing detections"
+    echo "  <output_dir>          directory to save the output images"
+    echo "  <method>              method to add noise (2d, 3d)"
     echo
     echo "Options:"
     echo "  -h, --help      Show this help message and exit" # Keep as it is
-    echo "  -s, --silent    Run in silent mode"
     echo
 }
 # CHANGE NUMBER AND NAMES OF ARGS AS NEEDED
 NO_REQ_ARGS=3
-
-
 
 main() {
     # Parse command line arguments here
@@ -53,34 +51,16 @@ main() {
         exit 1
     fi
     IMAGES_DIR=$1
-    OUTPUT_DETECTIONS_DIR=$2
-    METHOD=$3
+    DETECTIONS_DIR=$2
+    OUTPUT_DIR=$3
+    METHOD=$4
 
-    shift $NO_REQ_ARGS
-
-    SILENT=false
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            -s|--silent)
-                SILENT=true
-                ;;
-            *)
-                echo "Error: Unrecognized option $1"
-                show_help
-                exit 1
-                ;;
-        esac
-        shift
-    done
     
     # Main script logic here
-    detections_dir=$OUTPUT_DETECTIONS_DIR
-    mkdir -p "$detections_dir"
-    if [ "$SILENT" = false ]; then
-        python3 find_detections.py "$IMAGES_DIR" "$detections_dir" "$METHOD"
-    else
-        python3 find_detections.py "$IMAGES_DIR" "$detections_dir" "$METHOD" --silent
+    if [ ! -d "$OUTPUT_DIR" ]; then
+        mkdir -p "$OUTPUT_DIR"
     fi
+    python3 add_laplacian_noise_to_images.py "$IMAGES_DIR" "$DETECTIONS_DIR" "$OUTPUT_DIR" "$METHOD"
 }
 # ==============================================================
 

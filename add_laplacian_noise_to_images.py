@@ -66,7 +66,7 @@ if __name__ == "__main__":
     # Process each detection file in the directory
     for detection_path in detection_paths:
         images_processed += 1
-        print(f"\rProgress: {(100 * images_processed / total_images):.2f}%", end="")
+        print(f"\rProgress: {(100 * images_processed / total_images):.2f}%", end=" ")
         try:
             image_path = os.path.join(image_directory, os.path.basename(detection_path).replace('.txt', '.png'))
             image = read_image(image_path, METHOD)
@@ -77,7 +77,7 @@ if __name__ == "__main__":
             human_bodies = []
             with open(detection_path, 'r') as f:
                 for line in f:
-                    x, y, w, h = map(int, line.strip().split())
+                    x, y, w, h = map(int, line.strip().split()[:4])
                     human_bodies.append((x, y, w, h))
 
             if human_bodies:
@@ -93,8 +93,10 @@ if __name__ == "__main__":
                 cv2.imwrite(output_path, image)
 
         except Exception as e:
-            error_msg = f"Error processing {detection_path}: {str(e)}"
-            errors.append(error_msg)
+            print(f"Error processing {detection_path}: {str(e)}")
+            errors.append(str(e))
+
+
 
     # Stop timer
     end_time = time.time()
@@ -102,12 +104,12 @@ if __name__ == "__main__":
     # Print detailed statistics
     print(f"Total images processed: {images_processed}")
     print(f"Images with detected humans and blurred: {blurred_images}")
-    print(f"Percentage of images with detected humans: {(blurred_images / images_processed) * 100:.2f}%")
+    print(f"Percentage of images with detected humans: {(blurred_images / total_images) * 100:.2f}%")
     print(f"Error processing images: {len(errors)}")
     print(f"Time taken: {end_time - start_time:.2f} seconds")
 
     # Optional: Save the list of errors to a file
-    with open(os.path.join(output_directory, 'errors.txt'), 'w') as f:
+    with open(os.path.join(output_directory, 'errors.log'), 'w') as f:
         for item in errors:
             f.write("%s\n" % item)
 

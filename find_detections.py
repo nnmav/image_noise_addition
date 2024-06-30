@@ -88,7 +88,7 @@ if __name__ == "__main__":
     for image_path in image_paths:
         error_msg=None
         images_processed += 1
-        print(f"\rProgress: {(100 * images_processed / total_images):.2f}%", end="")
+        print(f"\rProgress: {(100 * images_processed / total_images):.2f}%", end=" ")
         try:
             human_bodies = detect_human_bodies(image_path, yolo_net, output_layers_names, method=METHOD)
             if human_bodies:
