@@ -1,3 +1,4 @@
+import json
 import shutil
 
 import cv2
@@ -52,7 +53,7 @@ def read_image(image_path, method):
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description='Add Laplacian noise to images based on detection boxes')
     argparser.add_argument('image_directory', type=str,  help='Path to the directory containing images')
-    argparser.add_argument('detection_directory', type=str, help='Path to the directory containing detection results')
+    argparser.add_argument('json_file', type=str, help='Path to the JSON file containing detection results')
     argparser.add_argument('output_directory', type=str, help='Path to the directory to save the output images')
     argparser.add_argument("method", type=str, help="Method to use for detection (2d or 3d)")
 
@@ -61,11 +62,18 @@ if __name__ == "__main__":
     METHOD = args.method
 
     image_directory = args.image_directory
-    detection_directory = args.detection_directory
+    json_file = args.json_file
     output_directory = args.output_directory
     os.makedirs(output_directory, exist_ok=True)
 
-    detection_paths = glob.glob(os.path.join(detection_directory, "*.txt"))
+
+    print(f"\nAdding Gaussian noise to images in {image_directory}.")
+    print(f"Detections from: {json_file}")
+    print(f"Save to: {output_directory}")
+
+    # Load the JSON file
+    with open(json_file, 'r') as f:
+        detection_data = json.load(f)
 
     # Initialize counters and lists for statistics
     images_processed = 0
@@ -77,29 +85,29 @@ if __name__ == "__main__":
     start_time = time.time()
 
     # Process each detection file in the directory
-    for detection_path in detection_paths:
+    for timestamp, detections in detection_data.items():
         images_processed += 1
         print(f"\rProgress: {(100 * images_processed / total_images):.2f}%", end=" ")
         error_msg = None
         try:
-            image_path = os.path.join(image_directory, os.path.basename(detection_path).replace('.txt', '.png'))
+            image_path = os.path.join(image_directory, f"{timestamp}.png")
             image = read_image(image_path, METHOD)
+
+            if len(detections[0]) > 4:
+                human_bodies = [(int(x), int(y), int(w), int(h)) for x, y, w, h, confidence in detections]
+            else:
+                human_bodies = [(int(x), int(y), int(w), int(h)) for x, y, w, h in detections]
+
 
             output_path = os.path.join(output_directory, os.path.basename(image_path))
 
             boxes = []
-            confidences = []
-            with open(detection_path, 'r') as f:
-                for line in f:
-                    x, y, w, h = map(int, line.strip().split()[:4])
-                    boxes.append((x, y, w, h))
-                    confidences.append(float(line.strip().split()[4]))
 
-            indices = cv2.dnn.NMSBoxes(boxes, confidences, score_threshold=0.5, nms_threshold=0.4)
+            # indices = cv2.dnn.NMSBoxes(boxes, confidences, score_threshold=0.5, nms_threshold=0.4)
             detected_boxes = []
-            if len(indices) > 0:
-                for i in indices.flatten():
-                    x, y, w, h = boxes[i]
+            if human_bodies:
+                for (x, y, w, h) in human_bodies:
+                    x, y, w, h = int(x), int(y), int(w), int(h)
                     detected_boxes.append((x, y, w, h))
                     image = blur_region(image, x, y, x + w, y + h)
                 cv2.imwrite(output_path, image)
@@ -107,14 +115,14 @@ if __name__ == "__main__":
                 shutil.copy(image_path, output_path)
 
         except Exception as e:
-            error_msg = f"Error processing {detection_path}: {str(e)}"
+            print(f"Error processing {timestamp}: {str(e)}")
             errors.append(error_msg)
 
     # Stop timer
     end_time = time.time()
 
     # Print detailed statistics
-    print(f"Total images processed: {images_processed}")
+    print(f"\nTotal images processed: {images_processed}")
     print(f"Images with detected humans and blurred: {blurred_images}")
     print(f"Percentage of images with detected humans: {(blurred_images / images_processed) * 100:.2f}%")
     print(f"Error processing images: {len(errors)}")
