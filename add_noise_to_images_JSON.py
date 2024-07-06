@@ -4,6 +4,7 @@ import os
 import glob
 import time
 import argparse
+import json
 
 # Define functions for differential privacy noise addition
 def calculate_sensitivity_rgb_images(image_data):
@@ -14,6 +15,14 @@ def add_noise_differential_privacy_rgb_images_laplace(image_data, epsilon):
     scale = sensitivity / epsilon
     laplace_noise = np.random.laplace(scale=scale, size=image_data.shape)
     noisy_image_data = image_data + laplace_noise
+    noisy_image_data = np.clip(noisy_image_data, 0, 255)
+    return noisy_image_data
+
+def add_noise_differential_privacy_rgb_images_gaussian(image_data, epsilon):
+    sensitivity = calculate_sensitivity_rgb_images(image_data)
+    scale = sensitivity / epsilon
+    gaussian_noise = np.random.normal(scale=scale, size=image_data.shape)
+    noisy_image_data = image_data + gaussian_noise
     noisy_image_data = np.clip(noisy_image_data, 0, 255)
     return noisy_image_data
 
@@ -39,20 +48,30 @@ def read_image(image_path, method):
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description='Add Laplacian noise to images based on detection boxes')
     argparser.add_argument('image_directory', type=str,  help='Path to the directory containing images')
-    argparser.add_argument('detection_directory', type=str, help='Path to the directory containing detection results')
+    argparser.add_argument('json_file', type=str, help='Path to the JSON file containing detection results')
     argparser.add_argument('output_directory', type=str, help='Path to the directory to save the output images')
     argparser.add_argument("method", type=str, help="Method to use for detection (2d or 3d)")
+    argparser.add_argument("noise_type", type=str, choices=['laplacian', 'gaussian'], help="Type of noise to add (laplacian or gaussian)")
+    argparser.add_argument("--epsilon", type=float, default=0.01, help="Epsilon value for differential privacy")
 
     args = argparser.parse_args()
 
     METHOD=args.method
-
+    epsilon = args.epsilon
+    noise_type = args.noise_type
     image_directory = args.image_directory
-    detection_directory = args.detection_directory
+    json_file = args.json_file
     output_directory = args.output_directory
+
     os.makedirs(output_directory, exist_ok=True)
 
-    detection_paths = glob.glob(os.path.join(detection_directory, "*.txt"))
+    print(f"\nAdding Laplacian noise: {image_directory} -> {output_directory} based on detection boxes in {json_file}")
+    print(f"Method: {METHOD}")
+    print(f"Epsilon: {epsilon}")
+
+    # Load the JSON file
+    with open(json_file, 'r') as f:
+        detection_data = json.load(f)
 
     # Initialize counters and lists for statistics
     images_processed = 0
@@ -64,36 +83,37 @@ if __name__ == "__main__":
     start_time = time.time()
 
     # Process each detection file in the directory
-    for detection_path in detection_paths:
+    for timestamp, detections in detection_data.items():
         images_processed += 1
         print(f"\rProgress: {(100 * images_processed / total_images):.2f}%", end=" ")
         try:
-            image_path = os.path.join(image_directory, os.path.basename(detection_path).replace('.txt', '.png'))
+            image_path = os.path.join(image_directory, f"{timestamp}.png")
             image = read_image(image_path, METHOD)
-            if image is None:
-                error_msg = f"Error reading {image_path}"
-                raise Exception(error_msg)
 
-            human_bodies = []
-            with open(detection_path, 'r') as f:
-                for line in f:
-                    x, y, w, h = map(int, line.strip().split()[:4])
-                    human_bodies.append((x, y, w, h))
+            if len(detections[0]) > 4:
+                human_bodies = [(int(x), int(y), int(w), int(h)) for x, y, w, h, confidence in detections]
+            else:
+                human_bodies = [(int(x), int(y), int(w), int(h)) for x, y, w, h in detections]
 
             if human_bodies:
                 blurred_images += 1
                 for (x, y, w, h) in human_bodies:
                     x, y, w, h = int(x), int(y), int(w), int(h)
-                    if w > 0 and h > 0 and x >= 0 and y >= 0 and x + w <= image.shape[1] and y + h <= image.shape[0]:
-                        roi = image[y:y + h, x:x + w]
-                        noisy_roi = add_noise_differential_privacy_rgb_images_laplace(roi, epsilon=0.01)
-                        image[y:y + h, x:x + w] = noisy_roi
+                    roi = image[
+                          max(0, y):min(y + h, image.shape[0]),
+                          max(0, x):min(x + w, image.shape[1])
+                          ]
+                    if noise_type == 'laplacian':
+                        noisy_roi = add_noise_differential_privacy_rgb_images_laplace(roi, epsilon=epsilon)
+                    else:
+                        noisy_roi = add_noise_differential_privacy_rgb_images_gaussian(roi, epsilon=epsilon)
+                    image[max(0,y):min(y + h,image.shape[0]), max(0,x):min(x + w,image.shape[1])] = noisy_roi
 
                 output_path = os.path.join(output_directory, os.path.basename(image_path))
                 cv2.imwrite(output_path, image)
 
         except Exception as e:
-            print(f"Error processing {detection_path}: {str(e)}")
+            print(f"Error processing {timestamp}: {str(e)}")
             errors.append(str(e))
 
 
@@ -102,7 +122,7 @@ if __name__ == "__main__":
     end_time = time.time()
 
     # Print detailed statistics
-    print(f"Total images processed: {images_processed}")
+    print(f"\nTotal images processed: {images_processed}")
     print(f"Images with detected humans and blurred: {blurred_images}")
     print(f"Percentage of images with detected humans: {(blurred_images / total_images) * 100:.2f}%")
     print(f"Error processing images: {len(errors)}")

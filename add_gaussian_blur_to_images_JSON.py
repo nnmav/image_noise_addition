@@ -1,3 +1,4 @@
+import json
 import shutil
 
 import cv2
@@ -13,7 +14,7 @@ def calculate_sensitivity_rgb_images(image_data):
 
 
 # Function to blur a region of the image
-def blur_region(image, startX, startY, endX, endY):
+def blur_region(image, startX, startY, endX, endY, sigma=30):
     startX = max(0, startX)
     startY = max(0, startY)
     endX = min(image.shape[1], endX)
@@ -24,7 +25,7 @@ def blur_region(image, startX, startY, endX, endY):
     if roi.size == 0:
         return image
 
-    blurred_roi = cv2.GaussianBlur(roi, (99, 99), 30)
+    blurred_roi = cv2.GaussianBlur(roi, (99, 99), sigma)
     image[startY:endY, startX:endX] = blurred_roi
     return image
 
@@ -52,25 +53,29 @@ def read_image(image_path, method):
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description='Add Laplacian noise to images based on detection boxes')
     argparser.add_argument('image_directory', type=str,  help='Path to the directory containing images')
-    argparser.add_argument('detection_directory', type=str, help='Path to the directory containing detection results')
+    argparser.add_argument('json_file', type=str, help='Path to the JSON file containing detection results')
     argparser.add_argument('output_directory', type=str, help='Path to the directory to save the output images')
     argparser.add_argument("method", type=str, help="Method to use for detection (2d or 3d)")
+    argparser.add_argument("--sigma", type=int, default=30, help="Sigma value for Gaussian blur")
+
 
     args = argparser.parse_args()
 
     METHOD = args.method
-
+    sigma = args.sigma
     image_directory = args.image_directory
-    detection_directory = args.detection_directory
+    json_file = args.json_file
     output_directory = args.output_directory
     os.makedirs(output_directory, exist_ok=True)
 
 
     print(f"\nAdding Gaussian noise to images in {image_directory}.")
-    print(f"Detections from: {detection_directory}")
+    print(f"Detections from: {json_file}")
     print(f"Save to: {output_directory}")
 
-    detection_paths = glob.glob(os.path.join(detection_directory, "*.txt"))
+    # Load the JSON file
+    with open(json_file, 'r') as f:
+        detection_data = json.load(f)
 
     # Initialize counters and lists for statistics
     images_processed = 0
@@ -82,37 +87,37 @@ if __name__ == "__main__":
     start_time = time.time()
 
     # Process each detection file in the directory
-    for detection_path in detection_paths:
+    for timestamp, detections in detection_data.items():
         images_processed += 1
         print(f"\rProgress: {(100 * images_processed / total_images):.2f}%", end=" ")
         error_msg = None
         try:
-            image_path = os.path.join(image_directory, os.path.basename(detection_path).replace('.txt', '.png'))
+            image_path = os.path.join(image_directory, f"{timestamp}.png")
             image = read_image(image_path, METHOD)
+
+            if len(detections[0]) > 4:
+                human_bodies = [(int(x), int(y), int(w), int(h)) for x, y, w, h, confidence in detections]
+            else:
+                human_bodies = [(int(x), int(y), int(w), int(h)) for x, y, w, h in detections]
+
 
             output_path = os.path.join(output_directory, os.path.basename(image_path))
 
             boxes = []
-            # confidences = []
-            with open(detection_path, 'r') as f:
-                for line in f:
-                    x, y, w, h = map(int, line.strip().split()[:4])
-                    boxes.append((x, y, w, h))
-                    # confidences.append(float(line.strip().split()[4]))
 
             # indices = cv2.dnn.NMSBoxes(boxes, confidences, score_threshold=0.5, nms_threshold=0.4)
             detected_boxes = []
-            if len(boxes) > 0:
-                for box in boxes:
-                    x, y, w, h = box
+            if human_bodies:
+                for (x, y, w, h) in human_bodies:
+                    x, y, w, h = int(x), int(y), int(w), int(h)
                     detected_boxes.append((x, y, w, h))
-                    image = blur_region(image, x, y, x + w, y + h)
+                    image = blur_region(image, x, y, x + w, y + h, sigma)
                 cv2.imwrite(output_path, image)
             else:
                 shutil.copy(image_path, output_path)
 
         except Exception as e:
-            error_msg = f"Error processing {detection_path}: {str(e)}"
+            print(f"Error processing {timestamp}: {str(e)}")
             errors.append(error_msg)
 
     # Stop timer

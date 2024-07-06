@@ -77,9 +77,9 @@ main() {
     detections_dir=$OUTPUT_DETECTIONS_DIR
     mkdir -p "$detections_dir"
     if [ "$SILENT" = false ]; then
-        python3 find_detections.py "$IMAGES_DIR" "$detections_dir" "$METHOD"
+        python3 find_detections_JSON.py "$IMAGES_DIR" "$detections_dir" "$METHOD"
     else
-        python3 find_detections.py "$IMAGES_DIR" "$detections_dir" "$METHOD" --silent
+        python3 find_detections_JSON.py "$IMAGES_DIR" "$detections_dir" "$METHOD" --silent
     fi
 }
 # ==============================================================

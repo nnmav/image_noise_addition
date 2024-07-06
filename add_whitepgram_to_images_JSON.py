@@ -8,25 +8,15 @@ import glob
 import time
 import argparse
 
-# Define functions for differential privacy noise addition
-def calculate_sensitivity_rgb_images(image_data):
-    return np.max(image_data)
-
-
-# Function to blur a region of the image
-def blur_region(image, startX, startY, endX, endY):
+# Function to fill a region of the image with white color
+def fill_region_with_white(image, startX, startY, endX, endY):
     startX = max(0, startX)
     startY = max(0, startY)
     endX = min(image.shape[1], endX)
     endY = min(image.shape[0], endY)
 
-    roi = image[startY:endY, startX:endX]
-
-    if roi.size == 0:
-        return image
-
-    blurred_roi = cv2.GaussianBlur(roi, (99, 99), 30)
-    image[startY:endY, startX:endX] = blurred_roi
+    if startX < endX and startY < endY:
+        image[startY:endY, startX:endX] = (255, 255, 255) # pure white
     return image
 
 def draw_bounding_boxes(image, boxes):
@@ -66,8 +56,7 @@ if __name__ == "__main__":
     output_directory = args.output_directory
     os.makedirs(output_directory, exist_ok=True)
 
-
-    print(f"\nAdding Gaussian noise to images in {image_directory}.")
+    print(f"\nAdding white boxes to images in {image_directory}.")
     print(f"Detections from: {json_file}")
     print(f"Save to: {output_directory}")
 
@@ -98,7 +87,6 @@ if __name__ == "__main__":
             else:
                 human_bodies = [(int(x), int(y), int(w), int(h)) for x, y, w, h in detections]
 
-
             output_path = os.path.join(output_directory, os.path.basename(image_path))
 
             boxes = []
@@ -109,7 +97,7 @@ if __name__ == "__main__":
                 for (x, y, w, h) in human_bodies:
                     x, y, w, h = int(x), int(y), int(w), int(h)
                     detected_boxes.append((x, y, w, h))
-                    image = blur_region(image, x, y, x + w, y + h)
+                    image = fill_region_with_white(image, x, y, x + w, y + h)
                 cv2.imwrite(output_path, image)
             else:
                 shutil.copy(image_path, output_path)
@@ -123,7 +111,7 @@ if __name__ == "__main__":
 
     # Print detailed statistics
     print(f"\nTotal images processed: {images_processed}")
-    print(f"Images with detected humans and blurred: {blurred_images}")
+    print(f"Images with detected humans and filled with white: {blurred_images}")
     print(f"Percentage of images with detected humans: {(blurred_images / images_processed) * 100:.2f}%")
     print(f"Error processing images: {len(errors)}")
     print(f"Time taken: {end_time - start_time:.2f} seconds")
@@ -133,4 +121,4 @@ if __name__ == "__main__":
         for item in errors:
             f.write("%s\n" % item)
 
-    print("All images have been processed and noise added based on detection boxes.")
+    print("All images have been processed and filled with white based on detection boxes.")
