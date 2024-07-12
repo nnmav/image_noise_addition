@@ -5,3 +5,5 @@
 /parameters/
 /code.zip
 /output/
+/output/*
+*.log
